@@ -54,12 +54,14 @@ type SourceDumpPrivilegeChecker struct {
 	checkTables       []filter.Table
 	consistency       string
 	dumpWholeInstance bool
+	version string
 }
 
 // NewSourceDumpPrivilegeChecker returns a RealChecker.
 func NewSourceDumpPrivilegeChecker(
 	db *sql.DB,
 	dbinfo *dbutil.DBConfig,
+	version string,
 	checkTables []filter.Table,
 	consistency string,
 	dumpWholeInstance bool,
@@ -70,6 +72,7 @@ func NewSourceDumpPrivilegeChecker(
 		checkTables:       checkTables,
 		consistency:       consistency,
 		dumpWholeInstance: dumpWholeInstance,
+		version: version,
 	}
 }
 
@@ -128,11 +131,12 @@ func (pc *SourceDumpPrivilegeChecker) Name() string {
 type SourceReplicatePrivilegeChecker struct {
 	db     *sql.DB
 	dbinfo *dbutil.DBConfig
+	version string
 }
 
 // NewSourceReplicationPrivilegeChecker returns a RealChecker.
-func NewSourceReplicationPrivilegeChecker(db *sql.DB, dbinfo *dbutil.DBConfig) RealChecker {
-	return &SourceReplicatePrivilegeChecker{db: db, dbinfo: dbinfo}
+func NewSourceReplicationPrivilegeChecker(db *sql.DB, dbinfo *dbutil.DBConfig, version string) RealChecker {
+	return &SourceReplicatePrivilegeChecker{db: db, dbinfo: dbinfo, version: version}
 }
 
 // Check implements the RealChecker interface.
@@ -171,10 +175,11 @@ func (pc *SourceReplicatePrivilegeChecker) Name() string {
 type TargetPrivilegeChecker struct {
 	db     *sql.DB
 	dbinfo *dbutil.DBConfig
+	version string
 }
 
-func NewTargetPrivilegeChecker(db *sql.DB, dbinfo *dbutil.DBConfig) RealChecker {
-	return &TargetPrivilegeChecker{db: db, dbinfo: dbinfo}
+func NewTargetPrivilegeChecker(db *sql.DB, dbinfo *dbutil.DBConfig, version string) RealChecker {
+	return &TargetPrivilegeChecker{db: db, dbinfo: dbinfo, version: version}
 }
 
 func (t *TargetPrivilegeChecker) Name() string {
