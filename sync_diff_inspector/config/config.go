@@ -43,6 +43,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Supported values for SplitterStrategy.
+const (
+	SplitterStrategyAuto   = "auto"
+	SplitterStrategyLimit  = "limit"
+	SplitterStrategyRandom = "random"
+)
+
 const (
 	// LocalFilePerm is the permission for local files
 	LocalFilePerm os.FileMode = 0o644
@@ -232,6 +239,14 @@ type TaskConfig struct {
 	TargetTableConfigs []*TableConfig
 	TargetCheckTables  filter.Filter
 
+	// ExportFixSQL mirrors the top-level config at runtime so
+	// ComputeConfigHash can include this mode switch without changing its
+	// signature, while still omitting the derived field from JSON output.
+	ExportFixSQL bool `json:"-"`
+	// SplitterStrategy mirrors top-level splitter-strategy so checkpoint hash
+	// can detect strategy changes consistently.
+	SplitterStrategy string `json:"-"`
+
 	FixDir        string
 	CheckpointDir string
 	HashFile      string
@@ -346,6 +361,8 @@ func (t *TaskConfig) Init(
 // we think the second sync diff can use the checkpoint.
 func (t *TaskConfig) ComputeConfigHash() (string, error) {
 	hash := make([]byte, 0)
+	hash = append(hash, []byte(strconv.FormatBool(t.ExportFixSQL))...)
+	hash = append(hash, []byte(t.SplitterStrategy)...)
 	// compute sources
 	for _, c := range t.SourceInstances {
 		configBytes, err := json.Marshal(c)
@@ -398,6 +415,11 @@ type Config struct {
 	CheckDataOnly bool `toml:"check-data-only" json:"-"`
 	// skip validation for tables that don't exist upstream or downstream
 	SkipNonExistingTable bool `toml:"skip-non-existing-table" json:"-"`
+	// SplitterStrategy controls which chunk iterator is used. "auto" (default)
+	// prefers the bucket iterator for chunk checksum and falls back to random
+	// on error; "random" and "limit" are enforced and skip the bucket iterator
+	// entirely.
+	SplitterStrategy string `toml:"splitter-strategy" json:"-"`
 	// DMAddr is dm-master's address, the format should like "http://127.0.0.1:8261"
 	DMAddr string `toml:"dm-addr" json:"dm-addr"`
 	// DMTask string `toml:"dm-task" json:"dm-task"`
@@ -585,6 +607,12 @@ func (c *Config) adjustConfigByDMSubTasks() (err error) {
 
 // Init initialize the config
 func (c *Config) Init() (err error) {
+	if err := c.normalizeSplitterStrategy(); err != nil {
+		return errors.Annotate(err, "failed to normalize splitter strategy")
+	}
+	c.Task.ExportFixSQL = c.ExportFixSQL
+	c.Task.SplitterStrategy = c.SplitterStrategy
+
 	if len(c.DMAddr) > 0 {
 		err := c.adjustConfigByDMSubTasks()
 		if err != nil {
@@ -614,7 +642,6 @@ func (c *Config) Init() (err error) {
 			return errors.Annotate(err, "failed to build route config")
 		}
 	}
-
 	err = c.Task.Init(c.DataSources, c.TableConfigs)
 	if err != nil {
 		return errors.Annotate(err, "failed to init Task")
@@ -641,6 +668,19 @@ func (c *Config) CheckConfig() bool {
 		}
 	}
 	return true
+}
+
+func (c *Config) normalizeSplitterStrategy() error {
+	mode := strings.ToLower(strings.TrimSpace(c.SplitterStrategy))
+	switch mode {
+	case "", SplitterStrategyAuto:
+		c.SplitterStrategy = SplitterStrategyAuto
+	case SplitterStrategyRandom, SplitterStrategyLimit:
+		c.SplitterStrategy = mode
+	default:
+		return errors.Errorf("splitter-strategy must be auto, random, or limit")
+	}
+	return nil
 }
 
 func timestampOutputDir() string {
