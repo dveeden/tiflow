@@ -8,7 +8,7 @@ on:
 jobs:
   dm-web-ui-lint:
     name: DM Web UI Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     defaults:
       run:

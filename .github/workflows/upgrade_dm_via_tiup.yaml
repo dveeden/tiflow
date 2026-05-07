@@ -24,7 +24,7 @@ concurrency:
 jobs:
   from_v1:
     name: From V1
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # skip it now, the ansible script fails with "Could not find the requested service prometheus-9090.service: host"
     # TODO enable it later.
     if: ${{ false }}
@@ -73,7 +73,7 @@ jobs:
 
   from_v2:
     name: From V2
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       working-directory: ${{ github.workspace }}/go/src/github.com/pingcap/tiflow
     strategy:
@@ -186,7 +186,7 @@ jobs:
 
   upgrade_tidb:
     name: Upgrade TiDB
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       working-directory: ${{ github.workspace }}/go/src/github.com/pingcap/tiflow
     steps:

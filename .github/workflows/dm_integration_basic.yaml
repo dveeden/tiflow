@@ -22,7 +22,7 @@ jobs:
           - '8.0'
           - '8.4'
           - '9.7'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       mysql:
         image: container-registry.oracle.com/mysql/community-server:${{ matrix.mysql_version }}
@@ -157,7 +157,7 @@ jobs:
           - '11.4'
           - '11.8'
           - '12.3-rc'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       tidb:
         image: 'pingcap/tidb:v8.5.5'

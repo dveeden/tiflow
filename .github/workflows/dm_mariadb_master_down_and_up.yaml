@@ -11,7 +11,7 @@ on:
 jobs:
   mariadb-master-down-and-up:
     name: mariadb-master-down-and-up
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out code
