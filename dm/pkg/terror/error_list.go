@@ -273,6 +273,8 @@ const (
 	codeConfigInvalidLoadAnalyze
 	codeConfigStrictOptimisticShardMode
 	codeConfigSecretKeyPath
+	codeConfigImportIntoShardingNotSupport
+	codeConfigImportIntoRequiresSharedStorage
 )
 
 // Binlog operation error code list.
@@ -972,7 +974,7 @@ var (
 	ErrOpenAPITaskConfigExist                   = New(codeConfigOpenAPITaskConfigExist, ClassConfig, ScopeInternal, LevelLow, "the openapi task config for '%s' already exist", "If you want to override it, please use the overwrite flag.")
 	ErrOpenAPITaskConfigNotExist                = New(codeConfigOpenAPITaskConfigNotExist, ClassConfig, ScopeInternal, LevelLow, "the openapi task config for '%s' does not exist", "")
 	ErrConfigCollationCompatibleNotSupport      = New(codeCollationCompatibleNotSupport, ClassConfig, ScopeInternal, LevelMedium, "collation compatible %s not supported", "Please check the `collation_compatible` config in task configuration file, which can be set to `loose`/`strict`.")
-	ErrConfigInvalidLoadMode                    = New(codeConfigInvalidLoadMode, ClassConfig, ScopeInternal, LevelMedium, "invalid load mode '%s'", "Please choose a valid value in ['logical', 'physical']")
+	ErrConfigInvalidLoadMode                    = New(codeConfigInvalidLoadMode, ClassConfig, ScopeInternal, LevelMedium, "invalid load mode '%s'", "Please choose a valid value in ['logical', 'physical', 'import-into']")
 	ErrConfigInvalidDuplicateResolution         = New(codeConfigInvalidLoadDuplicateResolution, ClassConfig, ScopeInternal, LevelMedium, "invalid load on-duplicate-logical or on-duplicate option '%s'", "Please choose a valid value in ['replace', 'error', 'ignore'] or leave it empty.")
 	ErrConfigValidationMode                     = New(codeConfigValidationMode, ClassConfig, ScopeInternal, LevelHigh, "invalid validation mode", "Please check `validation-mode` config in task configuration file.")
 	ErrContinuousValidatorCfgNotFound           = New(codeContinuousValidatorCfgNotFound, ClassConfig, ScopeInternal, LevelMedium, "mysql-instance(%d)'s continuous validator config %s not exist", "Please check the `validator-config-name` config in task configuration file.")
@@ -987,6 +989,8 @@ var (
 	ErrConfigInvalidLoadAnalyze                 = New(codeConfigInvalidLoadAnalyze, ClassConfig, ScopeInternal, LevelMedium, "invalid load analyze option '%s'", "Please choose a valid value in ['required', 'optional', 'off'] or leave it empty.")
 	ErrConfigStrictOptimisticShardMode          = New(codeConfigStrictOptimisticShardMode, ClassConfig, ScopeInternal, LevelMedium, "cannot enable `strict-optimistic-shard-mode` while `shard-mode` is not `optimistic`", "Please set `shard-mode` to `optimistic` if you want to enable `strict-optimistic-shard-mode`.")
 	ErrConfigSecretKeyPath                      = New(codeConfigSecretKeyPath, ClassConfig, ScopeInternal, LevelHigh, "invalid secret key path or content: %v", "Please check whether the path is valid, and has required permission to read the file, and the key is correct.")
+	ErrConfigImportIntoShardingNotSupport       = New(codeConfigImportIntoShardingNotSupport, ClassConfig, ScopeInternal, LevelHigh, "import-into mode does not support sharding (multi-source) scenario", "Please use 'physical' or 'logical' mode for sharding scenarios, or disable sharding mode to use 'import-into'.")
+	ErrConfigImportIntoRequiresSharedStorage    = New(codeConfigImportIntoRequiresSharedStorage, ClassConfig, ScopeInternal, LevelHigh, "import-into mode requires shared storage (s3, gcs, azure, etc.) for loader's dir, but got local path '%s'", "Please use a shared storage URI like s3://bucket/path")
 
 	// Binlog operation error.
 	ErrBinlogExtractPosition = New(codeBinlogExtractPosition, ClassBinlogOp, ScopeInternal, LevelHigh, "", "")
@@ -1160,7 +1164,7 @@ var (
 	ErrSyncerEvent                          = New(codeSyncerEvent, ClassSyncUnit, ScopeInternal, LevelHigh, "", "")
 	ErrSyncerOperatorNotExist               = New(codeSyncerOperatorNotExist, ClassSyncUnit, ScopeInternal, LevelLow, "error operator not exist, position: %s", "")
 	ErrSyncerEventNotExist                  = New(codeSyncerEventNotExist, ClassSyncUnit, ScopeInternal, LevelHigh, "replace or inject event not exist, location: %s", "")
-	ErrSyncerParseDDL                       = New(codeSyncerParseDDL, ClassSyncUnit, ScopeInternal, LevelHigh, "parse DDL: %s", "Please confirm your DDL statement is correct and needed. For TiDB compatible DDL, see https://docs.pingcap.com/tidb/stable/mysql-compatibility#ddl. You can use `handle-error` command to skip or replace the DDL or add a binlog filter rule to ignore it if the DDL is not needed.")
+	ErrSyncerParseDDL                       = New(codeSyncerParseDDL, ClassSyncUnit, ScopeInternal, LevelHigh, "parse DDL: %s", "Please confirm your DDL statement is correct and needed. For TiDB compatible DDL, see https://docs.pingcap.com/tidb/stable/mysql-compatibility#ddl-operations. You can use `handle-error` command to skip or replace the DDL or add a binlog filter rule to ignore it if the DDL is not needed.")
 	ErrSyncerUnsupportedStmt                = New(codeSyncerUnsupportedStmt, ClassSyncUnit, ScopeInternal, LevelHigh, "`%s` statement not supported in %s mode", "")
 	ErrSyncerGetEvent                       = New(codeSyncerGetEvent, ClassSyncUnit, ScopeUpstream, LevelHigh, "get binlog event error: %v", "Please check if the binlog file could be parsed by `mysqlbinlog`.")
 	ErrSyncerDownstreamTableNotFound        = New(codeSyncerDownstreamTableNotFound, ClassSyncUnit, ScopeInternal, LevelHigh, "downstream table %s not found", "")
