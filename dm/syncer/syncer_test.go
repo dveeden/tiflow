@@ -31,6 +31,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/pingcap/check"
 	"github.com/pingcap/failpoint"
+	pclog "github.com/pingcap/log"
 	"github.com/pingcap/tidb/pkg/infoschema"
 	"github.com/pingcap/tidb/pkg/parser"
 	"github.com/pingcap/tidb/pkg/parser/ast"
@@ -62,6 +63,7 @@ import (
 	"github.com/pingcap/tiflow/pkg/sqlmodel"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 var _ = check.Suite(&testSyncerSuite{})
@@ -217,6 +219,38 @@ func (s *testSyncerSuite) resetEventsGenerator(c *check.C) {
 
 func (s *testSyncerSuite) TearDownSuite(c *check.C) {
 	os.RemoveAll(s.cfg.Dir)
+}
+
+func (s *testSyncerSuite) TestSampleUnhandledEvents(c *check.C) {
+	core, logs := observer.New(zap.WarnLevel)
+	restoreGlobal := pclog.ReplaceGlobals(zap.New(core), nil)
+	defer restoreGlobal()
+
+	cfg := genDefaultSubTaskConfig4Test()
+	syncer := NewSyncer(cfg, nil, nil)
+
+	syncer.recordUnhandledEvent("unhandled event", &replication.RowsQueryEvent{})
+	syncer.recordUnhandledEvent("unhandled event", &replication.RowsQueryEvent{})
+	syncer.recordUnhandledEvent("unhandled event", &replication.QueryEvent{})
+	syncer.recordUnhandledEvent("unhandled event from transaction payload", &replication.QueryEvent{})
+
+	entries := logs.All()
+	c.Assert(entries, check.HasLen, 2)
+
+	seen := make(map[string][]map[string]interface{}, len(entries))
+	for _, entry := range entries {
+		seen[entry.Message] = append(seen[entry.Message], entry.ContextMap())
+	}
+
+	c.Assert(seen["unhandled event"], check.HasLen, 1)
+	c.Assert(seen["unhandled event"][0]["type"], check.Equals, "*replication.RowsQueryEvent")
+	c.Assert(seen["unhandled event from transaction payload"], check.HasLen, 1)
+	c.Assert(seen["unhandled event from transaction payload"][0]["type"], check.Equals, "*replication.QueryEvent")
+
+	syncer.recordUnhandledEvent("unhandled event", &replication.RowsQueryEvent{})
+	syncer.recordUnhandledEvent("unhandled event", &replication.QueryEvent{})
+	syncer.recordUnhandledEvent("unhandled event from transaction payload", &replication.QueryEvent{})
+	c.Assert(logs.All(), check.HasLen, 2)
 }
 
 func mockGetServerUnixTS(mock sqlmock.Sqlmock) {
@@ -1820,6 +1854,42 @@ func genDefaultSubTaskConfig4Test() *config.SubTaskConfig {
 	cfg.From.Adjust()
 	cfg.To.Adjust()
 	return cfg
+}
+
+func TestHandleRotateEventUpdatesGlobalCheckpoint(t *testing.T) {
+	tctx := tcontext.Background()
+	cfg := genDefaultSubTaskConfig4Test()
+	syncer := &Syncer{cfg: cfg}
+	syncer.checkpoint = NewRemoteCheckPoint(tctx, cfg, nil, "test")
+	oldLocation := binlog.Location{
+		Position: mysql.Position{
+			Name: "mysql-bin.000001",
+			Pos:  123,
+		},
+	}
+	syncer.checkpoint.SaveGlobalPoint(oldLocation)
+	newLocation := binlog.Location{
+		Position: mysql.Position{
+			Name: "mysql-bin.000003",
+			Pos:  binlog.FileHeaderLen,
+		},
+	}
+	eventHeader := &replication.EventHeader{
+		Timestamp: 1,
+		LogPos:    uint32(newLocation.Position.Pos),
+		EventType: replication.ROTATE_EVENT,
+	}
+	rotateEvent := &replication.RotateEvent{
+		NextLogName: []byte(newLocation.Position.Name),
+		Position:    uint64(newLocation.Position.Pos),
+	}
+	ec := eventContext{
+		tctx:        tctx,
+		header:      eventHeader,
+		endLocation: newLocation,
+	}
+	require.NoError(t, syncer.handleRotateEvent(rotateEvent, ec))
+	require.Equal(t, newLocation, syncer.checkpoint.GlobalPoint())
 }
 
 func TestWaitBeforeRunExit(t *testing.T) {
