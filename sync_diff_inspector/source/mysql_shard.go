@@ -27,6 +27,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/dbutil"
 	"github.com/pingcap/tidb/pkg/util/filter"
 	tableFilter "github.com/pingcap/tidb/pkg/util/table-filter"
+	"github.com/pingcap/tiflow/dm/pkg/conn"
 	"github.com/pingcap/tiflow/sync_diff_inspector/config"
 	"github.com/pingcap/tiflow/sync_diff_inspector/source/common"
 	"github.com/pingcap/tiflow/sync_diff_inspector/splitter"
@@ -52,12 +53,15 @@ func (a *MySQLTableAnalyzer) AnalyzeSplitter(ctx context.Context, table *common.
 	originTable.Schema = matchedSources[0].OriginSchema
 	originTable.Table = matchedSources[0].OriginTable
 	progressID := dbutil.TableName(table.Schema, table.Table)
-	// use random splitter if we cannot use bucket splitter, then we can simply choose target table to generate chunks.
-	randIter, err := splitter.NewRandomIteratorWithCheckpoint(ctx, progressID, &originTable, matchedSources[0].DBConn, startRange)
-	if err != nil {
-		return nil, errors.Trace(err)
+
+	switch originTable.SplitterStrategy {
+	case config.SplitterStrategyLimit:
+		log.Info("choose limit splitter", zap.String("table", progressID))
+		return splitter.NewLimitIteratorWithCheckpoint(ctx, progressID, &originTable, matchedSources[0].DBConn, startRange)
+	default:
+		log.Info("choose random splitter", zap.String("table", progressID))
+		return splitter.NewRandomIteratorWithCheckpoint(ctx, progressID, &originTable, matchedSources[0].DBConn, startRange)
 	}
-	return randIter, nil
 }
 
 // MySQLSources represent one table in MySQL
@@ -351,7 +355,7 @@ func NewMySQLSources(ctx context.Context, tableDiffs []*common.TableDiff, ds []*
 			if filter.IsSystemSchema(strings.ToLower(schema)) {
 				continue
 			}
-			allTables, err := dbutil.GetTables(ctx, sourceDB.Conn, schema)
+			allTables, err := conn.GetTables(ctx, sourceDB.Conn, schema)
 			if err != nil {
 				return nil, errors.Annotatef(err, "get tables from %d source %s", i, schema)
 			}

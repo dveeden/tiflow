@@ -17,6 +17,8 @@ import (
 	"encoding/json"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,6 +27,8 @@ import (
 
 func TestParseConfig(t *testing.T) {
 	uuid.SetRand(rand.New(rand.NewSource(1)))
+	tmpDir := filepath.Join(t.TempDir(), "output")
+
 	cfg := NewConfig()
 	require.Nil(t, cfg.Parse([]string{"-L", "info", "--config", "config.toml"}))
 	cfg = NewConfig()
@@ -35,16 +39,19 @@ func TestParseConfig(t *testing.T) {
 	require.Contains(t, err.Error(), "LL")
 
 	require.Nil(t, cfg.Parse([]string{"--config", "config.toml"}))
+	cfg.Task.OutputDir = tmpDir
 	require.Nil(t, cfg.Init())
 	require.Nil(t, cfg.Task.Init(cfg.DataSources, cfg.TableConfigs))
 
 	require.Nil(t, cfg.Parse([]string{"--config", "config_sharding.toml"}))
+	cfg.Task.OutputDir = tmpDir
 	// we change the config from config.toml to config_sharding.toml
 	// this action will raise error.
 	require.Contains(t, cfg.Init().Error(), "failed to init Task: config changes breaking the checkpoint, please use another outputDir and start over again")
 
-	require.NoError(t, os.RemoveAll(cfg.Task.OutputDir))
+	require.NoError(t, os.RemoveAll(tmpDir))
 	require.Nil(t, cfg.Parse([]string{"--config", "config_sharding.toml"}))
+	cfg.Task.OutputDir = tmpDir
 	// this time will be ok, because we remove the last outputDir.
 	require.Nil(t, cfg.Init())
 	require.Nil(t, cfg.Task.Init(cfg.DataSources, cfg.TableConfigs))
@@ -52,14 +59,60 @@ func TestParseConfig(t *testing.T) {
 	require.True(t, cfg.CheckConfig())
 
 	// we might not use the same config to run this test. e.g. MYSQL_PORT can be 4000
-	require.JSONEq(t,
-		"{\"ConfigFile\":\"config_sharding.toml\",\"PrintVersion\":false,\"check-struct-only\":false,\"check-thread-count\":4,\"data-sources\":{\"mysql1\":{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule2\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},\"mysql2\":{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule2\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},\"mysql3\":{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule3\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},\"tidb0\":{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":4000,\"route-rules\":null,\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":{\"max_execution_time\":86400,\"tidb_opt_prefer_range_scan\":\"ON\"},\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"}},\"dm-addr\":\"\",\"dm-task\":\"\",\"export-fix-sql\":true,\"routes\":{\"rule1\":{\"schema-pattern\":\"test_*\",\"table-pattern\":\"t_*\",\"target-schema\":\"test\",\"target-table\":\"t\"},\"rule2\":{\"schema-pattern\":\"test2_*\",\"table-pattern\":\"t2_*\",\"target-schema\":\"test2\",\"target-table\":\"t2\"},\"rule3\":{\"schema-pattern\":\"test2_*\",\"table-pattern\":\"t2_*\",\"target-schema\":\"test\",\"target-table\":\"t\"}},\"split-thread-count\":5,\"table-configs\":{\"config1\":{\"Collation\":\"\",\"ConfigIndex\":0,\"Fields\":[\"\"],\"HasMatched\":false,\"IgnoreColumns\":[\"\",\"\"],\"Range\":\"age \\u003e 10 AND age \\u003c 20\",\"Schema\":\"\",\"Table\":\"\",\"TargetTableInfo\":null,\"chunk-size\":0,\"target-tables\":[\"schema*.table*\",\"test2.t2\"]}},\"task\":{\"CheckpointDir\":\"/tmp/output/config/checkpoint\",\"FixDir\":\"/tmp/output/config/fix-on-tidb0\",\"HashFile\":\"\",\"SourceInstances\":[{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule2\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule2\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":3306,\"route-rules\":[\"rule1\",\"rule3\"],\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":null,\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"}],\"TargetCheckTables\":[{},{},{}],\"TargetInstance\":{\"Conn\":null,\"Router\":{\"Selector\":{}},\"host\":\"127.0.0.1\",\"password\":\"******\",\"port\":4000,\"route-rules\":null,\"security\":{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"},\"session\":{\"max_execution_time\":86400,\"tidb_opt_prefer_range_scan\":\"ON\"},\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"sql-mode\":\"\",\"user\":\"root\"},\"TargetTableConfigs\":[{\"Collation\":\"\",\"ConfigIndex\":0,\"Fields\":[\"\"],\"HasMatched\":false,\"IgnoreColumns\":[\"\",\"\"],\"Range\":\"age \\u003e 10 AND age \\u003c 20\",\"Schema\":\"\",\"Table\":\"\",\"TargetTableInfo\":null,\"chunk-size\":0,\"target-tables\":[\"schema*.table*\",\"test2.t2\"]}],\"output-dir\":\"/tmp/output/config\",\"source-instances\":[\"mysql1\",\"mysql2\",\"mysql3\"],\"source-routes\":null,\"target-check-tables\":[\"schema*.table*\",\"!c.*\",\"test2.t2\"],\"target-configs\":[\"config1\"],\"target-instance\":\"tidb0\"}}", cfg.String())
+	emptySecurity := "{\"ca-bytes\":\"\",\"ca-path\":\"\",\"cert-bytes\":\"\",\"cert-path\":\"\",\"key-bytes\":\"\",\"key-path\":\"\"}"
+	expectedJSON := strings.ReplaceAll(
+		"{\"check-thread-count\":4,\"split-thread-count\":5,\"export-fix-sql\":true,\"check-struct-only\":false,\"dm-addr\":\"\",\"dm-task\":\"\",\"data-sources\":{\"mysql1\":{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule2\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null},\"mysql2\":{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule2\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null},\"mysql3\":{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule3\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null},\"tidb0\":{\"host\":\"127.0.0.1\",\"port\":4000,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":null,\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":{\"max_execution_time\":86400,\"tidb_opt_prefer_range_scan\":\"ON\"}}},\"routes\":{\"rule1\":{\"schema-pattern\":\"test_*\",\"table-pattern\":\"t_*\",\"target-schema\":\"test\",\"target-table\":\"t\"},\"rule2\":{\"schema-pattern\":\"test2_*\",\"table-pattern\":\"t2_*\",\"target-schema\":\"test2\",\"target-table\":\"t2\"},\"rule3\":{\"schema-pattern\":\"test2_*\",\"table-pattern\":\"t2_*\",\"target-schema\":\"test\",\"target-table\":\"t\"}},\"table-configs\":{\"config1\":{\"target-tables\":[\"schema*.table*\",\"test2.t2\"],\"Schema\":\"\",\"Table\":\"\",\"ConfigIndex\":0,\"HasMatched\":false,\"IgnoreColumns\":[\"\",\"\"],\"Fields\":[\"\"],\"Range\":\"age \\u003e 10 AND age \\u003c 20\",\"TargetTableInfo\":null,\"Collation\":\"\",\"chunk-size\":0}},\"task\":{\"source-instances\":[\"mysql1\",\"mysql2\",\"mysql3\"],\"source-routes\":null,\"target-instance\":\"tidb0\",\"target-check-tables\":[\"schema*.table*\",\"!c.*\",\"test2.t2\"],\"target-configs\":[\"config1\"],\"output-dir\":\"OUTPUT_DIR_PLACEHOLDER\",\"SourceInstances\":[{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule2\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null},{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule2\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null},{\"host\":\"127.0.0.1\",\"port\":3306,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":[\"rule1\",\"rule3\"],\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":null}],\"TargetInstance\":{\"host\":\"127.0.0.1\",\"port\":4000,\"user\":\"root\",\"password\":\"******\",\"sql-mode\":\"\",\"snapshot\":\"\",\"sql-hint-use-index\":\"\",\"security\":SECURITY_PLACEHOLDER,\"route-rules\":null,\"Router\":{\"Selector\":{}},\"Conn\":null,\"session\":{\"max_execution_time\":86400,\"tidb_opt_prefer_range_scan\":\"ON\"}},\"TargetTableConfigs\":[{\"target-tables\":[\"schema*.table*\",\"test2.t2\"],\"Schema\":\"\",\"Table\":\"\",\"ConfigIndex\":0,\"HasMatched\":false,\"IgnoreColumns\":[\"\",\"\"],\"Fields\":[\"\"],\"Range\":\"age \\u003e 10 AND age \\u003c 20\",\"TargetTableInfo\":null,\"Collation\":\"\",\"chunk-size\":0}],\"TargetCheckTables\":[{},{},{}],\"FixDir\":\"OUTPUT_DIR_PLACEHOLDER/fix-on-tidb0\",\"CheckpointDir\":\"OUTPUT_DIR_PLACEHOLDER/checkpoint\",\"HashFile\":\"\"},\"ConfigFile\":\"config_sharding.toml\",\"PrintVersion\":false}",
+		"OUTPUT_DIR_PLACEHOLDER", tmpDir)
+	expectedJSON = strings.ReplaceAll(expectedJSON, "SECURITY_PLACEHOLDER", emptySecurity)
+	require.JSONEq(t, cfg.String(), expectedJSON)
 	hash, err := cfg.Task.ComputeConfigHash()
 	require.NoError(t, err)
-	require.Equal(t, "043cfdd2038e52e4af9ddaa202f4509b9e35b8d16224053ec9fa8b611168264b", hash)
+	require.Equal(t, hash, "abd00223626f1dae5a61b7b3f2611b7423f66eaa50c1e8c8f9b6d1f347ee5b22")
 	require.True(t, cfg.TableConfigs["config1"].Valid())
+}
 
-	require.NoError(t, os.RemoveAll(cfg.Task.OutputDir))
+func TestComputeConfigHashIncludesExportFixSQL(t *testing.T) {
+	cfg := NewConfig()
+	require.NoError(t, cfg.Parse([]string{"--config", "config.toml"}))
+	cfg.Task.OutputDir = t.TempDir()
+	require.NoError(t, cfg.Init())
+
+	cfg.Task.ExportFixSQL = true
+	withFixSQL, err := cfg.Task.ComputeConfigHash()
+	require.NoError(t, err)
+
+	cfg.Task.ExportFixSQL = false
+	withoutFixSQL, err := cfg.Task.ComputeConfigHash()
+	require.NoError(t, err)
+
+	require.NotEqual(t, withFixSQL, withoutFixSQL)
+}
+
+func TestComputeConfigHashIncludesSplitterStrategy(t *testing.T) {
+	cfg := NewConfig()
+	require.NoError(t, cfg.Parse([]string{"--config", "config.toml"}))
+	cfg.Task.OutputDir = t.TempDir()
+	require.NoError(t, cfg.Init())
+
+	cfg.Task.SplitterStrategy = SplitterStrategyRandom
+	randomHash, err := cfg.Task.ComputeConfigHash()
+	require.NoError(t, err)
+
+	cfg.Task.SplitterStrategy = SplitterStrategyLimit
+	limitHash, err := cfg.Task.ComputeConfigHash()
+	require.NoError(t, err)
+
+	require.NotEqual(t, randomHash, limitHash)
+}
+
+func TestInitNormalizesSplitterStrategyBeforeCheckpointHash(t *testing.T) {
+	cfg := NewConfig()
+	require.NoError(t, cfg.Parse([]string{"--config", "config.toml"}))
+	cfg.Task.OutputDir = t.TempDir()
+	cfg.SplitterStrategy = " RANDOM "
+	require.NoError(t, cfg.Init())
+	require.Equal(t, SplitterStrategyRandom, cfg.SplitterStrategy)
+	require.Equal(t, SplitterStrategyRandom, cfg.Task.SplitterStrategy)
 }
 
 func TestError(t *testing.T) {

@@ -67,6 +67,11 @@ type TableDiff struct {
 
 	ChunkSize int64 `json:"chunk-size"`
 
+	// SplitterStrategy selects the chunk iterator. "auto" prefers bucket
+	// (chunk checksum only) then falls back to random; "random" and "limit"
+	// are enforced and skip the bucket iterator.
+	SplitterStrategy string `json:"-"`
+
 	// TableLack = 1: the table only exists downstream,
 	// TableLack = -1: the table only exists upstream,
 	// TableLack = 0: the table exists both upstream and downstream.
