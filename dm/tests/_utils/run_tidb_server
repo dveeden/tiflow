@@ -27,9 +27,17 @@ fi
 
 TEST_DIR=/tmp/dm_test
 
+# Nextgen TiDB refuses to start without a keyspace name (or standby mode).
+# The Jenkins pull_dm_integration_test_next_gen pipeline sets NEXT_GEN=1.
+EXTRA_ARGS=""
+if [ "${NEXT_GEN:-0}" = "1" ]; then
+	EXTRA_ARGS="-keyspace-name=SYSTEM"
+fi
+
 echo "Starting TiDB on port ${PORT}"
 bin/tidb-server \
 	-P ${PORT} \
+	${EXTRA_ARGS} \
 	--config "$tmp_config" \
 	--log-file "$TEST_DIR/downstream/tidb/log/tidb.log" &
 
